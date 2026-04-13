@@ -1,25 +1,43 @@
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import '../App.css'
 
 /* =====================================================
    Shared Navbar
-   Used on both Landing and Dashboard.
    Props:
      - variant: 'landing' | 'dashboard'  (default: 'landing')
-       Controls which center-links are shown.
    ===================================================== */
 function Navbar({ variant = 'landing' }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const navRef = useRef(null)
+
+  /* Close when clicking outside the navbar */
+  useEffect(() => {
+    if (!isOpen) return
+    function onOutsideClick(e) {
+      if (navRef.current && !navRef.current.contains(e.target)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onOutsideClick)
+    return () => document.removeEventListener('mousedown', onOutsideClick)
+  }, [isOpen])
+
+  /* Close on route change (Link clicks close automatically via onClick,
+     but hash-anchor navigations need this) */
+  function close() { setIsOpen(false) }
+
   return (
-    <nav className="navbar">
+    <nav className="navbar" ref={navRef}>
       <div className="navbar__inner">
 
         {/* Logo — always links to home */}
-        <Link to="/" className="navbar__logo">
+        <Link to="/" className="navbar__logo" onClick={close}>
           <span className="navbar__logo-mark">◈</span>
           POD
         </Link>
 
-        {/* Center links differ per context */}
+        {/* Center links — desktop only */}
         {variant === 'landing' ? (
           <ul className="navbar__links">
             <li><a href="#how-it-works" className="navbar__link">How it Works</a></li>
@@ -37,11 +55,37 @@ function Navbar({ variant = 'landing' }) {
           Connect Wallet
         </button>
 
-        {/* Mobile burger */}
-        <button className="navbar__burger" aria-label="Open menu">
+        {/* Mobile burger — transforms into × when open */}
+        <button
+          className={`navbar__burger${isOpen ? ' navbar__burger--open' : ''}`}
+          aria-label={isOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={isOpen}
+          onClick={() => setIsOpen(o => !o)}
+        >
           <span /><span /><span />
         </button>
+      </div>
 
+      {/* ── Mobile dropdown menu ──────────────────────── */}
+      <div className={`navbar__mobile-menu${isOpen ? ' navbar__mobile-menu--open' : ''}`}>
+        {variant === 'landing' ? (
+          <>
+            <a href="#how-it-works" className="navbar__mobile-link" onClick={close}>How it Works</a>
+            <a href="#features"     className="navbar__mobile-link" onClick={close}>For Freelancers</a>
+          </>
+        ) : (
+          <>
+            <Link to="/dashboard" className="navbar__mobile-link" onClick={close}>Dashboard</Link>
+            <Link to="/submit"    className="navbar__mobile-link" onClick={close}>Submit Work</Link>
+            <Link to="/score"     className="navbar__mobile-link" onClick={close}>My Score</Link>
+          </>
+        )}
+
+        <div className="navbar__mobile-divider" />
+
+        <button className="btn btn--primary navbar__mobile-cta">
+          Connect Wallet
+        </button>
       </div>
     </nav>
   )
