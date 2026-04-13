@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useAccount } from 'wagmi'
 import Navbar from '../components/Navbar'
 import '../App.css'
 import './Dashboard.css'
@@ -194,6 +195,19 @@ function ScoreBar({ label, value }) {
 
 /* ── Main Dashboard component ────────────────────── */
 function Dashboard() {
+  const { address, isConnected } = useAccount()
+
+  /* Derive display values from real wallet, fall back to mock when disconnected */
+  const displayAddress = isConnected && address
+    ? address
+    : MOCK_USER.address
+  const shortAddress = isConnected && address
+    ? `${address.slice(0, 6)}...${address.slice(-4)}`
+    : MOCK_USER.shortAddress
+  const avatarInitials = isConnected && address
+    ? address.slice(2, 4).toUpperCase()
+    : 'AE'
+
   return (
     <div className="dash">
 
@@ -206,27 +220,30 @@ function Dashboard() {
           <section className="profile fade-up" style={{ '--delay': '0ms' }}>
             {/* Gradient avatar */}
             <div className="profile__avatar" aria-label="User avatar">
-              <span className="profile__avatar-initials">AE</span>
+              <span className="profile__avatar-initials">{avatarInitials}</span>
             </div>
 
             <div className="profile__info">
               <div className="profile__name-row">
-                <h1 className="profile__name">{MOCK_USER.ensName}</h1>
-                <span className="profile__verified-badge">
-                  {/* Checkmark */}
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Verified Freelancer
-                </span>
+                <h1 className="profile__name">
+                  {isConnected && address ? shortAddress : MOCK_USER.ensName}
+                </h1>
+                {isConnected && (
+                  <span className="profile__verified-badge">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                      <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Verified Freelancer
+                  </span>
+                )}
               </div>
 
               <button
                 className="profile__address"
-                onClick={() => navigator.clipboard?.writeText(MOCK_USER.address)}
+                onClick={() => navigator.clipboard?.writeText(displayAddress)}
                 title="Copy full address"
               >
-                <span className="profile__address-text">{MOCK_USER.shortAddress}</span>
+                <span className="profile__address-text">{shortAddress}</span>
                 <CopyIcon />
               </button>
 

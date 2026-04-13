@@ -27,3 +27,8 @@ dist-ssr
 .claude/
 
 .vercel
+
+# Local environment variables (contains secrets — never commit)
+.env
+.env.local
+.env.*.local

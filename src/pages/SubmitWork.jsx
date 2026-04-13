@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { useAccount } from 'wagmi'
 import Navbar from '../components/Navbar'
+import WalletButton from '../components/WalletButton'
 import '../App.css'
 import './SubmitWork.css'
 
@@ -24,6 +26,7 @@ const EMPTY_FORM = {
 }
 
 function SubmitWork() {
+  const { isConnected } = useAccount()
   const [form,   setForm]   = useState(EMPTY_FORM)
   const [status, setStatus] = useState(STATUS.IDLE)
   const [errors, setErrors] = useState({})
@@ -96,7 +99,26 @@ function SubmitWork() {
             </div>
           </header>
 
+          {/* ── Wallet gate ─────────────────────────── */}
+          {!isConnected && (
+            <div className="wallet-gate fade-up" style={{ '--delay': '80ms' }}>
+              <div className="wallet-gate__icon" aria-hidden="true">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+                  <rect x="2" y="6" width="20" height="14" rx="2" stroke="#6C63FF" strokeWidth="1.5"/>
+                  <path d="M16 13a2 2 0 100-4 2 2 0 000 4z" fill="#6C63FF" opacity=".6"/>
+                  <path d="M2 10h20" stroke="#6C63FF" strokeWidth="1.5"/>
+                </svg>
+              </div>
+              <h2 className="wallet-gate__title">Connect your wallet to submit work</h2>
+              <p className="wallet-gate__sub">
+                Your wallet address is used to sign and store your work proof on-chain.
+              </p>
+              <WalletButton className="btn--lg" />
+            </div>
+          )}
+
           {/* ── Two-column layout: form + sidebar ───── */}
+          {isConnected && (
           <div className="submit-layout fade-up" style={{ '--delay': '80ms' }}>
 
             {/* ── Main form card ─────────────────────── */}
@@ -408,6 +430,7 @@ function SubmitWork() {
 
             </aside>
           </div>
+          )}
         </div>
       </main>
     </div>

@@ -3,6 +3,48 @@
    Design tokens in index.css | Shared utils in App.css
    ===================================================== */
 
+/* ── Wallet gate (shown when not connected) ──────── */
+.wallet-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+  padding: 72px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  margin-bottom: 48px;
+}
+
+.wallet-gate__icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  background: rgba(108, 99, 255, 0.08);
+  border: 1px solid rgba(108, 99, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.wallet-gate__title {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.wallet-gate__sub {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  max-width: 400px;
+  margin: 0 0 8px;
+  line-height: 1.6;
+}
+
 /* ── Page shell ──────────────────────────────────── */
 .submit-page {
   min-height: 100vh;
