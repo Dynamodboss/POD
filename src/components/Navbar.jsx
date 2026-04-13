@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import WalletButton from './WalletButton'
 import '../App.css'
 
 /* =====================================================
@@ -23,15 +24,13 @@ function Navbar({ variant = 'landing' }) {
     return () => document.removeEventListener('mousedown', onOutsideClick)
   }, [isOpen])
 
-  /* Close on route change (Link clicks close automatically via onClick,
-     but hash-anchor navigations need this) */
   function close() { setIsOpen(false) }
 
   return (
     <nav className="navbar" ref={navRef}>
       <div className="navbar__inner">
 
-        {/* Logo — always links to home */}
+        {/* Logo */}
         <Link to="/" className="navbar__logo" onClick={close}>
           <span className="navbar__logo-mark">◈</span>
           POD
@@ -51,9 +50,10 @@ function Navbar({ variant = 'landing' }) {
           </ul>
         )}
 
-        <button className="btn btn--primary navbar__cta">
-          Connect Wallet
-        </button>
+        {/* Desktop wallet button */}
+        <div className="navbar__cta">
+          <WalletButton />
+        </div>
 
         {/* Mobile burger — transforms into × when open */}
         <button
@@ -83,9 +83,7 @@ function Navbar({ variant = 'landing' }) {
 
         <div className="navbar__mobile-divider" />
 
-        <button className="btn btn--primary navbar__mobile-cta">
-          Connect Wallet
-        </button>
+        <WalletButton className="navbar__mobile-cta" />
       </div>
     </nav>
   )

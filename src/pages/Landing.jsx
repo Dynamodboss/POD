@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import Navbar from '../components/Navbar'
+import WalletButton from '../components/WalletButton'
 import '../App.css'
 
 /* =====================================================
@@ -174,7 +175,7 @@ function Landing() {
           <p className="cta__sub">
             Join thousands of freelancers building their on-chain identity with POD.
           </p>
-          <button className="btn btn--primary btn--lg">Connect Wallet</button>
+          <WalletButton className="btn--lg" />
         </div>
       </section>
 
