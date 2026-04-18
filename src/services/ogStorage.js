@@ -9,6 +9,8 @@
              becomes the permanent proof reference.
    ===================================================== */
 
+import { saveProof } from './ogCompute'
+
 const INDEXER_API = 'https://indexer-storage-testnet-standard.0g.ai'
 
 /* ── Build the canonical JSON payload ────────────── */
@@ -119,14 +121,19 @@ async function uploadOnChain(payload) {
  */
 export async function uploadWorkProof(proofData) {
   const payload = buildPayload(proofData)
+  let result
 
   /* ── Try indexer HTTP upload ──────────────────────── */
   try {
-    return await uploadViaIndexer(payload)
+    result = await uploadViaIndexer(payload)
   } catch (indexerErr) {
     console.warn('0G indexer upload failed, falling back to on-chain tx:', indexerErr.message)
+    /* ── Fallback: on-chain calldata ─────────────────── */
+    result = await uploadOnChain(payload)
   }
 
-  /* ── Fallback: on-chain calldata ─────────────────── */
-  return await uploadOnChain(payload)
+  /* Persist the proof locally so the scoring engine can read it */
+  saveProof(proofData, result.txHash)
+
+  return result
 }

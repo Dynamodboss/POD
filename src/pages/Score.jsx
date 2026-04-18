@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
+import { useAccount } from 'wagmi'
 import Navbar from '../components/Navbar'
+import { computePodScore, getScoreHistory } from '../services/ogCompute'
 import '../App.css'
 import './Score.css'
 
@@ -7,96 +9,25 @@ import './Score.css'
    POD — Score Breakdown Page
    Shows the AI-generated reputation score with full
    category breakdown, history chart, and tips.
-   All data is mock / hardcoded — no chain calls yet.
+   Fetches real score from 0G Compute; falls back to
+   a local algorithm when unavailable.
    ===================================================== */
 
-/* ── Mock data ───────────────────────────────────── */
-const SCORE_VALUE = 742
-const SCORE_MAX   = 1000
-const PERCENTILE  = 12
-
-const CATEGORIES = [
-  {
-    id: 'delivery',
-    label: 'Delivery Quality',
-    score: 89,
-    max: 100,
-    icon: '◈',
-    insight: 'Consistently delivers complete, professional work with thorough documentation.',
-    color: '#6C63FF',
-  },
-  {
-    id: 'satisfaction',
-    label: 'Client Satisfaction',
-    score: 88,
-    max: 100,
-    icon: '◉',
-    insight: 'High repeat client rate and positive feedback across all project types.',
-    color: '#8b5cf6',
-  },
-  {
-    id: 'ontime',
-    label: 'On-Time Rate',
-    score: 91,
-    max: 100,
-    icon: '◷',
-    insight: 'Rarely misses deadlines across all projects. Strong time management habits.',
-    color: '#a78bfa',
-  },
-  {
-    id: 'diversity',
-    label: 'Work Diversity',
-    score: 76,
-    max: 100,
-    icon: '◑',
-    insight: 'Strong variety of project types and industries, with room to expand further.',
-    color: '#7c3aed',
-  },
+/* ── Category metadata (colors & icons per slot) ──── */
+const CATEGORY_META = [
+  { id: 'delivery',     icon: '◈', color: '#6C63FF' },
+  { id: 'satisfaction', icon: '◉', color: '#8b5cf6' },
+  { id: 'ontime',       icon: '◷', color: '#a78bfa' },
+  { id: 'diversity',    icon: '◑', color: '#7c3aed' },
 ]
 
-/* Score history — last 6 months */
-const HISTORY = [
-  { month: 'Jan', value: 580 },
-  { month: 'Feb', value: 623 },
-  { month: 'Mar', value: 668 },
-  { month: 'Apr', value: 701 },
-  { month: 'May', value: 728 },
-  { month: 'Jun', value: 742 },
-]
-
-const TIPS = [
-  {
-    id: 1,
-    title: 'Get Client Attestations',
-    desc: 'Ask past clients to verify your work on-chain.',
-    bonus: '+50 score potential',
-    icon: ClientIcon,
-    urgency: 'high',
-  },
-  {
-    id: 2,
-    title: 'Submit More Proofs',
-    desc: 'You have 3 unsubmitted projects. Add them to boost your score.',
-    bonus: '+35 score potential',
-    icon: UploadIcon,
-    urgency: 'medium',
-  },
-  {
-    id: 3,
-    title: 'Diversify Work Types',
-    desc: 'Your lowest category. Try new project types to improve.',
-    bonus: '+28 score potential',
-    icon: DiversifyIcon,
-    urgency: 'low',
-  },
-]
-
-/* Full AI analysis text — typed out on load */
-const AI_TEXT =
-  'Based on 23 verified work proofs, your strongest attribute is delivery consistency. ' +
-  'Clients report high satisfaction with communication and final output quality. ' +
-  'To improve your score, consider expanding into new industries and collecting more ' +
-  'client attestations from past engagements.'
+/* ── Insight sentences per category ─────────────────── */
+function categoryInsight(label, value) {
+  if (value >= 85) return `Strong performance in ${label.toLowerCase()}. Keep it up.`
+  if (value >= 60) return `Good ${label.toLowerCase()}, with room to improve further.`
+  if (value >= 30) return `${label} is developing. More verified proofs will help.`
+  return `${label} needs attention — submit more work to improve this area.`
+}
 
 /* ── Icon components ─────────────────────────────── */
 function ClientIcon() {
@@ -126,6 +57,47 @@ function DiversifyIcon() {
       <circle cx="17.5" cy="17.5" r="3.5" stroke="currentColor" strokeWidth="1.75"/>
     </svg>
   )
+}
+
+/* ── Generate dynamic tips based on score breakdown ── */
+function generateTips(breakdown) {
+  if (!breakdown || breakdown.length === 0) return []
+
+  /* Sort by weakest area first */
+  const sorted = [...breakdown].sort((a, b) => a.value - b.value)
+  const tips = []
+
+  const weakest = sorted[0]
+  if (weakest && weakest.value < 80) {
+    tips.push({
+      id: 1,
+      title: `Improve ${weakest.label}`,
+      desc: `Your weakest category at ${weakest.value}%. Focus here for the biggest score boost.`,
+      bonus: `+${Math.max(10, 80 - weakest.value)} score potential`,
+      icon: DiversifyIcon,
+      urgency: 'high',
+    })
+  }
+
+  tips.push({
+    id: 2,
+    title: 'Get Client Attestations',
+    desc: 'Ask past clients to verify your work on-chain for higher trust.',
+    bonus: '+50 score potential',
+    icon: ClientIcon,
+    urgency: tips.length === 0 ? 'high' : 'medium',
+  })
+
+  tips.push({
+    id: 3,
+    title: 'Submit More Proofs',
+    desc: 'Each verified proof strengthens your on-chain reputation.',
+    bonus: '+35 score potential',
+    icon: UploadIcon,
+    urgency: 'low',
+  })
+
+  return tips
 }
 
 /* ── Animated counter hook ───────────────────────── */
@@ -165,6 +137,10 @@ function AITypingText({ text, speed = 18 }) {
   const indexRef                  = useRef(0)
 
   useEffect(() => {
+    indexRef.current = 0
+    setDisplayed('')
+    setDone(false)
+
     // Small delay before typing starts so the page settles
     const startDelay = setTimeout(() => {
       const interval = setInterval(() => {
@@ -251,16 +227,20 @@ function CategoryCard({ cat, animate }) {
 }
 
 /* ── Bar chart (CSS only) ────────────────────────── */
-/* Bars are scaled from a baseline of 500 to max 800 */
-const CHART_MIN = 500
-const CHART_MAX = 800
-
 function BarChart({ data }) {
   const [animate, setAnimate] = useState(false)
   const ref = useRef(null)
 
+  /* Derive chart range from actual data */
+  const values  = data.map(d => d.value)
+  const dataMin = Math.min(...values)
+  const dataMax = Math.max(...values)
+  const chartMin = Math.max(0, Math.floor((dataMin - 50) / 50) * 50)
+  const chartMax = Math.ceil((dataMax + 50) / 50) * 50
+  const chartMid = Math.round((chartMin + chartMax) / 2)
+  const range    = chartMax - chartMin || 1
+
   useEffect(() => {
-    // Trigger bar growth via IntersectionObserver so it fires when visible
     const observer = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) { setAnimate(true); observer.disconnect() } },
       { threshold: 0.3 }
@@ -270,12 +250,12 @@ function BarChart({ data }) {
   }, [])
 
   return (
-    <div className="chart" ref={ref} aria-label="POD Score history over 6 months">
+    <div className="chart" ref={ref} aria-label="POD Score history">
       {/* Y-axis labels */}
       <div className="chart__y-axis" aria-hidden="true">
-        <span>800</span>
-        <span>650</span>
-        <span>500</span>
+        <span>{chartMax}</span>
+        <span>{chartMid}</span>
+        <span>{chartMin}</span>
       </div>
 
       <div className="chart__area">
@@ -289,18 +269,16 @@ function BarChart({ data }) {
         {/* Bars */}
         <div className="chart__bars">
           {data.map((item, i) => {
-            const pct = ((item.value - CHART_MIN) / (CHART_MAX - CHART_MIN)) * 100
+            const pct = ((item.value - chartMin) / range) * 100
             const isLast = i === data.length - 1
             return (
               <div className="chart__col" key={item.month}>
-                {/* Value label above bar */}
                 <span
                   className={`chart__bar-label ${animate ? 'chart__bar-label--visible' : ''}`}
                   style={{ transitionDelay: `${i * 80 + 200}ms` }}
                 >
                   {item.value}
                 </span>
-                {/* The bar itself */}
                 <div
                   className={`chart__bar ${isLast ? 'chart__bar--current' : ''}`}
                   style={{
@@ -320,11 +298,59 @@ function BarChart({ data }) {
 
 /* ── Main page component ─────────────────────────── */
 function Score() {
-  const displayScore = useCountUp(SCORE_VALUE, 1800, 400)
+  const { address, isConnected } = useAccount()
+  const [score, setScore]       = useState(null)
+  const [loading, setLoading]   = useState(false)
+
+  /* Fetch score when wallet connects */
+  useEffect(() => {
+    if (!isConnected || !address) { setScore(null); return }
+    let cancelled = false
+    setLoading(true)
+    computePodScore(address)
+      .then(s => { if (!cancelled) setScore(s) })
+      .catch(err => console.error('Score compute error:', err))
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [address, isConnected])
+
+  const scoreValue  = score?.value      ?? 0
+  const scoreMax    = score?.max        ?? 1000
+  const percentile  = score?.percentile ?? 100
+  const breakdown   = score?.breakdown  ?? []
+  const totalProofs = score?.totalProjects ?? 0
+  const aiInsight   = score?.aiInsight  ?? 'Connect your wallet to see your AI-generated score analysis.'
+
+  const displayScore = useCountUp(scoreValue, 1800, 400)
+
+  /* Map breakdown to category card format */
+  const categories = breakdown.map((item, i) => {
+    const meta = CATEGORY_META[i] || CATEGORY_META[0]
+    return {
+      id:      meta.id,
+      label:   item.label,
+      score:   item.value,
+      max:     100,
+      icon:    meta.icon,
+      insight: categoryInsight(item.label, item.value),
+      color:   meta.color,
+    }
+  })
+
+  /* Build chart data from score history */
+  const history = getScoreHistory(address)
+  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const chartData = history.map(h => {
+    const d = new Date(h.date)
+    return { month: MONTH_NAMES[d.getMonth()] || '?', value: h.value }
+  })
+
+  /* Generate tips based on breakdown */
+  const tips = generateTips(breakdown)
+
   const [catsVisible, setCatsVisible] = useState(false)
   const catsRef = useRef(null)
 
-  // Trigger category bar animations when the section scrolls into view
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) { setCatsVisible(true); observer.disconnect() } },
@@ -348,9 +374,9 @@ function Score() {
 
             <div className="score-hero__ring-wrap">
               <ScoreRingLarge
-                value={SCORE_VALUE}
-                displayValue={displayScore}
-                max={SCORE_MAX}
+                value={scoreValue}
+                displayValue={loading ? '...' : displayScore}
+                max={scoreMax}
               />
             </div>
 
@@ -359,34 +385,38 @@ function Score() {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="#6C63FF" strokeWidth="1.75" strokeLinejoin="round"/>
                 </svg>
-                Top {PERCENTILE}% Globally
+                {scoreValue > 0 ? `Top ${percentile}% Globally` : 'Not Yet Ranked'}
               </span>
 
               <h1 className="score-hero__title">Your POD Score</h1>
               <p className="score-hero__sub">
-                Calculated from 23 verified work proofs across 7 countries and 4 categories.
+                {totalProofs > 0
+                  ? `Calculated from ${totalProofs} verified work proof${totalProofs === 1 ? '' : 's'} via ${score?.source === '0g-compute' ? '0G Compute AI' : 'local algorithm'}.`
+                  : 'Submit work proofs to generate your AI-powered reputation score.'}
               </p>
 
               <div className="score-hero__updated">
                 <span className="score-hero__updated-dot" aria-hidden="true" />
-                Updated 2 hours ago
+                {score?.source === '0g-compute' ? 'Scored by 0G Compute' : score?.source === 'local' ? 'Scored locally' : 'No score yet'}
               </div>
             </div>
           </section>
 
           {/* ── Category breakdown ─────────────────── */}
-          <section ref={catsRef} className="score-cats fade-up" style={{ '--delay': '100ms' }}>
-            <div className="section-label-row">
-              <p className="section-eyebrow">Score Breakdown</p>
-              <h2 className="score-section-title">How your score is calculated</h2>
-            </div>
+          {categories.length > 0 && (
+            <section ref={catsRef} className="score-cats fade-up" style={{ '--delay': '100ms' }}>
+              <div className="section-label-row">
+                <p className="section-eyebrow">Score Breakdown</p>
+                <h2 className="score-section-title">How your score is calculated</h2>
+              </div>
 
-            <div className="cats-grid">
-              {CATEGORIES.map(cat => (
-                <CategoryCard key={cat.id} cat={cat} animate={catsVisible} />
-              ))}
-            </div>
-          </section>
+              <div className="cats-grid">
+                {categories.map(cat => (
+                  <CategoryCard key={cat.id} cat={cat} animate={catsVisible} />
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* ── AI Insights ────────────────────────── */}
           <section className="ai-insights fade-up" style={{ '--delay': '160ms' }}>
@@ -407,51 +437,57 @@ function Score() {
 
             <div className="ai-insights__body">
               <div className="ai-insights__prompt-chip" aria-hidden="true">
-                Analyzing 23 proofs · 0G Network · POD AI v2.1
+                {totalProofs > 0
+                  ? `Analyzing ${totalProofs} proof${totalProofs === 1 ? '' : 's'} · 0G Network · POD AI`
+                  : 'No proofs to analyze yet'}
               </div>
-              <AITypingText text={AI_TEXT} speed={18} />
+              <AITypingText text={aiInsight} speed={18} />
             </div>
           </section>
 
           {/* ── Score history chart ─────────────────── */}
-          <section className="score-history fade-up" style={{ '--delay': '220ms' }}>
-            <div className="section-label-row">
-              <p className="section-eyebrow">Score History</p>
-              <h2 className="score-section-title">Your progress over 6 months</h2>
-            </div>
-            <div className="score-history__card">
-              <BarChart data={HISTORY} />
-            </div>
-          </section>
+          {chartData.length > 1 && (
+            <section className="score-history fade-up" style={{ '--delay': '220ms' }}>
+              <div className="section-label-row">
+                <p className="section-eyebrow">Score History</p>
+                <h2 className="score-section-title">Your progress over time</h2>
+              </div>
+              <div className="score-history__card">
+                <BarChart data={chartData} />
+              </div>
+            </section>
+          )}
 
           {/* ── Improvement tips ───────────────────── */}
-          <section className="score-tips fade-up" style={{ '--delay': '280ms' }}>
-            <div className="section-label-row">
-              <p className="section-eyebrow">Recommendations</p>
-              <h2 className="score-section-title">How to improve your score</h2>
-            </div>
+          {tips.length > 0 && (
+            <section className="score-tips fade-up" style={{ '--delay': '280ms' }}>
+              <div className="section-label-row">
+                <p className="section-eyebrow">Recommendations</p>
+                <h2 className="score-section-title">How to improve your score</h2>
+              </div>
 
-            <div className="tips-grid">
-              {TIPS.map((tip, i) => {
-                const Icon = tip.icon
-                return (
-                  <div className={`tip-card tip-card--${tip.urgency}`} key={tip.id}>
-                    <div className="tip-card__icon">
-                      <Icon />
+              <div className="tips-grid">
+                {tips.map(tip => {
+                  const Icon = tip.icon
+                  return (
+                    <div className={`tip-card tip-card--${tip.urgency}`} key={tip.id}>
+                      <div className="tip-card__icon">
+                        <Icon />
+                      </div>
+                      <div className="tip-card__body">
+                        <h3 className="tip-card__title">{tip.title}</h3>
+                        <p className="tip-card__desc">{tip.desc}</p>
+                        <span className="tip-card__bonus">{tip.bonus}</span>
+                      </div>
+                      <button className="btn btn--ghost tip-card__btn">
+                        Take Action
+                      </button>
                     </div>
-                    <div className="tip-card__body">
-                      <h3 className="tip-card__title">{tip.title}</h3>
-                      <p className="tip-card__desc">{tip.desc}</p>
-                      <span className="tip-card__bonus">{tip.bonus}</span>
-                    </div>
-                    <button className="btn btn--ghost tip-card__btn">
-                      Take Action
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          </section>
+                  )
+                })}
+              </div>
+            </section>
+          )}
 
         </div>
       </main>

@@ -1,78 +1,17 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAccount } from 'wagmi'
 import Navbar from '../components/Navbar'
+import { computePodScore, getProofs } from '../services/ogCompute'
 import '../App.css'
 import './Dashboard.css'
 
 /* =====================================================
    POD — Dashboard / Profile Page
-   All data is mock / hardcoded — no blockchain yet.
+   Fetches real score from 0G Compute + local proofs.
+   Falls back to a local scoring algorithm when the
+   0G Serving Broker is unavailable.
    ===================================================== */
-
-/* ── Mock data ───────────────────────────────────── */
-const MOCK_USER = {
-  address:     '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9e0a',
-  shortAddress: '0x1a2b...9e0a',
-  ensName:     'alex.eth',
-  memberSince: 'March 2024',
-  verified:    true,
-}
-
-const MOCK_SCORE = {
-  value:      742,
-  max:        1000,
-  percentile: 12,
-  breakdown: [
-    { label: 'Delivery Rate',      value: 94 },
-    { label: 'Client Satisfaction', value: 88 },
-    { label: 'On-Time Rate',       value: 91 },
-  ],
-}
-
-const MOCK_STATS = [
-  { label: 'Total Projects', value: '23',     icon: BriefcaseIcon },
-  { label: 'Total Earned',   value: '$18,400', icon: DollarIcon    },
-  { label: 'Countries',      value: '7',       icon: GlobeIcon     },
-  { label: 'Agent ID',       value: '#POD-4821', icon: ShieldIcon  },
-]
-
-const MOCK_WORK = [
-  {
-    id: 1,
-    title:  'Brand Identity for TechCorp',
-    desc:   'Full visual identity system including logo, color palette, and brand guidelines.',
-    amount: '$1,200',
-    date:   'Jan 15, 2025',
-    status: 'Verified',
-    hash:   '0xf3a1...9c2d',
-  },
-  {
-    id: 2,
-    title:  'Smart Contract Audit for DeFiSwap',
-    desc:   'Security audit of ERC-20 token contract and liquidity pool logic.',
-    amount: '$3,500',
-    date:   'Dec 3, 2024',
-    status: 'Verified',
-    hash:   '0xb71e...4f8a',
-  },
-  {
-    id: 3,
-    title:  'Full-Stack MVP for StartupXYZ',
-    desc:   'Next.js + Supabase application with auth, dashboards, and Stripe billing.',
-    amount: '$5,200',
-    date:   'Oct 20, 2024',
-    status: 'Verified',
-    hash:   '0x2c9d...e571',
-  },
-]
-
-const MOCK_AGENT = {
-  tokenId:  '#4821',
-  minted:   'January 15, 2025',
-  chain:    '0G Network',
-  contract: '0x8f3c...a12d',
-  standard: 'ERC-721',
-}
 
 /* ── SVG Icon helpers (inline, no dependency) ────── */
 function BriefcaseIcon() {
@@ -196,17 +135,70 @@ function ScoreBar({ label, value }) {
 /* ── Main Dashboard component ────────────────────── */
 function Dashboard() {
   const { address, isConnected } = useAccount()
+  const [score, setScore]       = useState(null)
+  const [loading, setLoading]   = useState(false)
 
-  /* Derive display values from real wallet, fall back to mock when disconnected */
+  /* Fetch score whenever the connected wallet changes */
+  useEffect(() => {
+    if (!isConnected || !address) {
+      setScore(null)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    computePodScore(address)
+      .then(s => { if (!cancelled) setScore(s) })
+      .catch(err => console.error('Score compute error:', err))
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [address, isConnected])
+
+  /* Derive display values from real wallet */
   const displayAddress = isConnected && address
     ? address
-    : MOCK_USER.address
+    : ''
   const shortAddress = isConnected && address
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
-    : MOCK_USER.shortAddress
+    : ''
   const avatarInitials = isConnected && address
     ? address.slice(2, 4).toUpperCase()
-    : 'AE'
+    : '--'
+
+  /* Use computed score or sensible defaults */
+  const scoreValue      = score?.value         ?? 0
+  const scoreMax        = score?.max           ?? 1000
+  const scorePercentile = score?.percentile    ?? 100
+  const breakdown       = score?.breakdown     ?? []
+  const totalProjects   = score?.totalProjects ?? 0
+  const totalEarned     = score?.totalEarned   ?? '$0'
+  const proofs          = score?.proofs        ?? []
+
+  /* Unique client wallets for the "Countries" stat (repurposed as "Clients") */
+  const uniqueClients = new Set(
+    proofs.map(p => p.clientWallet?.toLowerCase()).filter(Boolean),
+  ).size
+
+  const stats = [
+    { label: 'Total Projects', value: String(totalProjects), icon: BriefcaseIcon },
+    { label: 'Total Earned',   value: totalEarned,           icon: DollarIcon    },
+    { label: 'Clients',        value: String(uniqueClients),  icon: GlobeIcon     },
+    { label: 'POD Score',      value: String(scoreValue),     icon: ShieldIcon    },
+  ]
+
+  /* Format proofs for the work history cards */
+  const workCards = proofs.map((p, i) => ({
+    id:     i + 1,
+    title:  p.title || 'Untitled Project',
+    desc:   p.description || '—',
+    amount: `$${Number(p.paymentAmount || 0).toLocaleString()}`,
+    date:   p.completionDate
+      ? new Date(p.completionDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : '—',
+    status: 'Verified',
+    hash:   p.txHash
+      ? `${p.txHash.slice(0, 6)}...${p.txHash.slice(-4)}`
+      : '—',
+  }))
 
   return (
     <div className="dash">
@@ -226,7 +218,7 @@ function Dashboard() {
             <div className="profile__info">
               <div className="profile__name-row">
                 <h1 className="profile__name">
-                  {isConnected && address ? shortAddress : MOCK_USER.ensName}
+                  {isConnected ? shortAddress : 'Not Connected'}
                 </h1>
                 {isConnected && (
                   <span className="profile__verified-badge">
@@ -238,16 +230,22 @@ function Dashboard() {
                 )}
               </div>
 
-              <button
-                className="profile__address"
-                onClick={() => navigator.clipboard?.writeText(displayAddress)}
-                title="Copy full address"
-              >
-                <span className="profile__address-text">{shortAddress}</span>
-                <CopyIcon />
-              </button>
+              {isConnected && (
+                <button
+                  className="profile__address"
+                  onClick={() => navigator.clipboard?.writeText(displayAddress)}
+                  title="Copy full address"
+                >
+                  <span className="profile__address-text">{shortAddress}</span>
+                  <CopyIcon />
+                </button>
+              )}
 
-              <p className="profile__meta">Member since {MOCK_USER.memberSince}</p>
+              <p className="profile__meta">
+                {totalProjects > 0
+                  ? `${totalProjects} verified proof${totalProjects === 1 ? '' : 's'} on 0G Network`
+                  : 'No proofs submitted yet'}
+              </p>
             </div>
 
             <button className="btn btn--ghost profile__edit-btn">
@@ -262,14 +260,18 @@ function Dashboard() {
             <div className="score-card__orb" aria-hidden="true" />
 
             <div className="score-card__left">
-              <ScoreRing value={MOCK_SCORE.value} max={MOCK_SCORE.max} />
+              <ScoreRing value={loading ? 0 : scoreValue} max={scoreMax} />
             </div>
 
             <div className="score-card__right">
               <div className="score-card__header">
                 <p className="section-eyebrow" style={{ marginBottom: '8px' }}>Reputation Score</p>
                 <h2 className="score-card__title">
-                  Top {MOCK_SCORE.percentile}% of all freelancers globally
+                  {loading
+                    ? 'Computing your score...'
+                    : scoreValue > 0
+                      ? `Top ${scorePercentile}% of all freelancers globally`
+                      : 'Submit work proofs to build your score'}
                 </h2>
                 <p className="score-card__sub">
                   Your POD Score is calculated from verified work history, client feedback, and delivery consistency.
@@ -277,26 +279,26 @@ function Dashboard() {
               </div>
 
               <div className="score-card__breakdown">
-                {MOCK_SCORE.breakdown.map(item => (
-                  <ScoreBar key={item.label} label={item.label} value={item.value} />
+                {breakdown.map(item => (
+                  <ScoreBar key={item.label} label={item.label} value={loading ? 0 : item.value} />
                 ))}
               </div>
 
-              <button className="btn btn--ghost score-card__cta">
+              <Link to="/score" className="btn btn--ghost score-card__cta">
                 View Full Breakdown
                 <ExternalIcon />
-              </button>
+              </Link>
             </div>
           </section>
 
           {/* ── 3. Stats Row ──────────────────────────── */}
           <section className="dash-stats fade-up" style={{ '--delay': '160ms' }}>
-            {MOCK_STATS.map(({ label, value, icon: Icon }) => (
+            {stats.map(({ label, value, icon: Icon }) => (
               <div className="dash-stat-card" key={label}>
                 <div className="dash-stat-card__icon">
                   <Icon />
                 </div>
-                <span className="dash-stat-card__value">{value}</span>
+                <span className="dash-stat-card__value">{loading ? '—' : value}</span>
                 <span className="dash-stat-card__label">{label}</span>
               </div>
             ))}
@@ -308,7 +310,7 @@ function Dashboard() {
               <div>
                 <h2 className="work-history__title">Verified Work History</h2>
                 <p className="work-history__sub">
-                  {MOCK_WORK.length} proofs stored on 0G Network
+                  {workCards.length} proof{workCards.length === 1 ? '' : 's'} stored on 0G Network
                 </p>
               </div>
               <Link to="/submit" className="btn btn--primary">
@@ -317,7 +319,14 @@ function Dashboard() {
             </div>
 
             <div className="work-history__list">
-              {MOCK_WORK.map((job, i) => (
+              {workCards.length === 0 && (
+                <div className="work-card" style={{ justifyContent: 'center', padding: '48px 24px' }}>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '14px', textAlign: 'center' }}>
+                    No work proofs yet. Submit your first project to get started.
+                  </p>
+                </div>
+              )}
+              {workCards.map((job, i) => (
                 <div
                   className="work-card fade-up"
                   key={job.id}
@@ -383,7 +392,7 @@ function Dashboard() {
               {/* Minted badge */}
               <span className="agent-card__minted-badge">
                 <span className="hero__badge-dot" style={{ width: '6px', height: '6px' }} />
-                Minted
+                {isConnected ? 'Active' : 'Not Minted'}
               </span>
             </div>
 
@@ -391,30 +400,39 @@ function Dashboard() {
               {/* Token details grid */}
               <div className="agent-card__details">
                 <div className="agent-detail">
-                  <span className="agent-detail__label">Token ID</span>
-                  <span className="agent-detail__value agent-detail__value--accent">{MOCK_AGENT.tokenId}</span>
+                  <span className="agent-detail__label">Wallet</span>
+                  <span className="agent-detail__value agent-detail__value--accent">
+                    {isConnected ? shortAddress : '—'}
+                  </span>
                 </div>
                 <div className="agent-detail">
-                  <span className="agent-detail__label">Minted</span>
-                  <span className="agent-detail__value">{MOCK_AGENT.minted}</span>
+                  <span className="agent-detail__label">Proofs</span>
+                  <span className="agent-detail__value">{totalProjects}</span>
                 </div>
                 <div className="agent-detail">
                   <span className="agent-detail__label">Network</span>
-                  <span className="agent-detail__value">{MOCK_AGENT.chain}</span>
+                  <span className="agent-detail__value">0G Network</span>
                 </div>
                 <div className="agent-detail">
-                  <span className="agent-detail__label">Standard</span>
-                  <span className="agent-detail__value">{MOCK_AGENT.standard}</span>
-                </div>
-                <div className="agent-detail agent-detail--wide">
-                  <span className="agent-detail__label">Contract</span>
-                  <span className="agent-detail__value agent-detail__value--mono">{MOCK_AGENT.contract}</span>
+                  <span className="agent-detail__label">Score Source</span>
+                  <span className="agent-detail__value">
+                    {score?.source === '0g-compute' ? '0G Compute AI' : score?.source === 'local' ? 'Local Algorithm' : '—'}
+                  </span>
                 </div>
               </div>
 
               {/* Visual score chip */}
-              <div className="agent-card__score-chip">
-                <span className="agent-card__score-chip-value">{MOCK_SCORE.value}</span>
+              <div
+                className="agent-card__score-chip"
+                style={{
+                  background: `conic-gradient(
+                    #6C63FF 0deg,
+                    #8b5cf6 ${Math.round((scoreValue / 1000) * 360)}deg,
+                    rgba(255,255,255,0.06) ${Math.round((scoreValue / 1000) * 360)}deg
+                  )`,
+                }}
+              >
+                <span className="agent-card__score-chip-value">{scoreValue}</span>
                 <span className="agent-card__score-chip-label">POD Score</span>
                 <div className="agent-card__score-chip-ring" aria-hidden="true" />
               </div>
@@ -461,7 +479,7 @@ function Dashboard() {
           </div>
         </div>
         <div className="footer__bottom">
-          <p className="footer__copy">© 2026 POD. All rights reserved.</p>
+          <p className="footer__copy">&copy; 2026 POD. All rights reserved.</p>
         </div>
       </footer>
 

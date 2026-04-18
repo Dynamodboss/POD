@@ -147,7 +147,7 @@ function SubmitWork() {
                       <path d="M7 12.5l3.5 3.5 6.5-7" stroke="#4ade80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </div>
-                  <h2 className="success-overlay__title">Stored on 0G Network!</h2>
+                  <h2 className="success-overlay__title">Stored on 0g Network!</h2>
                   <p className="success-overlay__sub">
                     Your work proof is permanently stored on-chain.
                   </p>
