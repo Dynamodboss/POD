@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAccount } from 'wagmi'
 import Navbar from '../components/Navbar'
 import WalletButton from '../components/WalletButton'
+import { uploadWorkProof } from '../services/ogStorage'
 import '../App.css'
 import './SubmitWork.css'
 
@@ -12,8 +13,8 @@ import './SubmitWork.css'
    All submission logic is mocked — no chain calls yet.
    ===================================================== */
 
-/* Submit state machine: idle → loading → success */
-const STATUS = { IDLE: 'idle', LOADING: 'loading', SUCCESS: 'success' }
+/* Submit state machine: idle → loading → success | error */
+const STATUS = { IDLE: 'idle', LOADING: 'loading', SUCCESS: 'success', ERROR: 'error' }
 
 const EMPTY_FORM = {
   title:         '',
@@ -26,10 +27,12 @@ const EMPTY_FORM = {
 }
 
 function SubmitWork() {
-  const { isConnected } = useAccount()
-  const [form,   setForm]   = useState(EMPTY_FORM)
-  const [status, setStatus] = useState(STATUS.IDLE)
-  const [errors, setErrors] = useState({})
+  const { address, isConnected } = useAccount()
+  const [form,      setForm]      = useState(EMPTY_FORM)
+  const [status,    setStatus]    = useState(STATUS.IDLE)
+  const [errors,    setErrors]    = useState({})
+  const [txResult,  setTxResult]  = useState(null)   // { txHash }
+  const [uploadErr, setUploadErr] = useState('')
 
   /* ── Field change handler ──────────────────────── */
   function handleChange(e) {
@@ -51,8 +54,8 @@ function SubmitWork() {
     return next
   }
 
-  /* ── Submit handler — mocked chain call ─────────── */
-  function handleSubmit(e) {
+  /* ── Submit handler — real 0G Storage upload ─────── */
+  async function handleSubmit(e) {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length) {
@@ -60,19 +63,30 @@ function SubmitWork() {
       return
     }
     setStatus(STATUS.LOADING)
-    // Simulate a 2.5s blockchain write
-    setTimeout(() => setStatus(STATUS.SUCCESS), 2500)
+    setUploadErr('')
+    try {
+      const result = await uploadWorkProof({ ...form, freelancerWallet: address })
+      setTxResult(result)
+      setStatus(STATUS.SUCCESS)
+    } catch (err) {
+      console.error('0G upload error:', err)
+      setUploadErr(err?.message ?? 'Upload failed. Please try again.')
+      setStatus(STATUS.ERROR)
+    }
   }
 
-  /* ── Reset form after success ────────────────────── */
+  /* ── Reset form after success / error ───────────── */
   function handleReset() {
     setForm(EMPTY_FORM)
     setErrors({})
     setStatus(STATUS.IDLE)
+    setTxResult(null)
+    setUploadErr('')
   }
 
   const isLoading = status === STATUS.LOADING
   const isSuccess = status === STATUS.SUCCESS
+  const isError   = status === STATUS.ERROR
 
   return (
     <div className="submit-page">
@@ -125,7 +139,7 @@ function SubmitWork() {
             <div className="submit-form-card">
 
               {/* Success overlay */}
-              {isSuccess && (
+              {isSuccess && txResult && (
                 <div className="success-overlay">
                   <div className="success-overlay__icon" aria-hidden="true">
                     <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
@@ -133,11 +147,17 @@ function SubmitWork() {
                       <path d="M7 12.5l3.5 3.5 6.5-7" stroke="#4ade80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                   </div>
-                  <h2 className="success-overlay__title">Proof Submitted Successfully!</h2>
+                  <h2 className="success-overlay__title">Stored on 0G Network!</h2>
                   <p className="success-overlay__sub">
-                    Your work proof has been stored on 0G Network.<br />
-                    Transaction hash: <code className="success-overlay__hash">0x7f3a...c2d1</code>
+                    Your work proof is permanently stored on-chain.
                   </p>
+                  {txResult.txHash && (
+                    <p className="success-overlay__sub" style={{ marginTop: 0 }}>
+                      Tx: <code className="success-overlay__hash">
+                        {txResult.txHash.slice(0, 10)}…{txResult.txHash.slice(-8)}
+                      </code>
+                    </p>
+                  )}
                   <p className="success-overlay__note">
                     Your POD Score will update within 24 hours as our AI agent processes your submission.
                   </p>
@@ -152,7 +172,29 @@ function SubmitWork() {
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} noValidate className={isSuccess ? 'form--hidden' : ''}>
+              {/* Error overlay */}
+              {isError && (
+                <div className="success-overlay">
+                  <div className="success-overlay__icon" aria-hidden="true">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="#f87171" strokeWidth="1.5"/>
+                      <path d="M15 9l-6 6M9 9l6 6" stroke="#f87171" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                  </div>
+                  <h2 className="success-overlay__title" style={{ color: '#f87171' }}>Upload Failed</h2>
+                  <p className="success-overlay__sub">{uploadErr}</p>
+                  <p className="success-overlay__note">
+                    Make sure your wallet is connected to 0G Galileo Testnet (chain ID 16602) and has enough gas.
+                  </p>
+                  <div className="success-overlay__actions">
+                    <button className="btn btn--primary" onClick={handleReset}>
+                      Try Again
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} noValidate className={isSuccess || isError ? 'form--hidden' : ''}>
                 <div className="form-section">
                   <h2 className="form-section__title">Project Details</h2>
                   <p className="form-section__sub">Describe the work you completed for this client.</p>
@@ -335,7 +377,7 @@ function SubmitWork() {
                   {isLoading ? (
                     <>
                       <span className="submit-btn__spinner" aria-hidden="true" />
-                      Storing on-chain...
+                      Uploading to 0G Storage...
                     </>
                   ) : (
                     <>

@@ -1,28 +1,30 @@
 import { connectorsForWallets } from '@rainbow-me/rainbowkit'
 import {
+  injectedWallet,
   metaMaskWallet,
   walletConnectWallet,
   coinbaseWallet,
   rabbyWallet,
   zerionWallet,
   rainbowWallet,
+  phantomWallet,
 } from '@rainbow-me/rainbowkit/wallets'
 import { createConfig, http } from 'wagmi'
 import { mainnet } from 'wagmi/chains'
 
 /* =====================================================
-   0G Newton Testnet — custom chain definition
-   chainId 16600 | https://0g.ai
+   0G Galileo Testnet — custom chain definition
+   chainId 16601 | https://0g.ai
    ===================================================== */
-const ogNewtonTestnet = {
-  id: 16600,
-  name: '0G Newton Testnet',
-  nativeCurrency: { name: '0G', symbol: 'A0GI', decimals: 18 },
+const ogGalileoTestnet = {
+  id: 16602,
+  name: '0G Galileo Testnet',
+  nativeCurrency: { name: '0G', symbol: 'OG', decimals: 18 },
   rpcUrls: {
     default: { http: ['https://evmrpc-testnet.0g.ai'] },
   },
   blockExplorers: {
-    default: { name: '0G Explorer', url: 'https://chainscan-newton.0g.ai' },
+    default: { name: '0G Explorer', url: 'https://chainscan-galileo.0g.ai' },
   },
   testnet: true,
 }
@@ -39,13 +41,21 @@ const WALLETCONNECT_PROJECT_ID =
 const connectors = connectorsForWallets(
   [
     {
-      groupName: 'Recommended',
+      /* injectedWallet catches ANY browser-extension wallet (MetaMask, Rabby,
+         Phantom, Brave Wallet, etc.) via window.ethereum directly — this is
+         the most reliable path for desktop Chrome extensions.             */
+      groupName: 'Browser Wallet',
+      wallets: [injectedWallet],
+    },
+    {
+      groupName: 'Popular',
       wallets: [
         metaMaskWallet,
-        rainbowWallet,
-        coinbaseWallet,
-        zerionWallet,
         rabbyWallet,
+        phantomWallet,
+        zerionWallet,
+        coinbaseWallet,
+        rainbowWallet,
         walletConnectWallet,
       ],
     },
@@ -58,10 +68,10 @@ const connectors = connectorsForWallets(
 
 /* ── Wagmi config ────────────────────────────────── */
 export const config = createConfig({
-  chains: [ogNewtonTestnet, mainnet],
+  chains: [ogGalileoTestnet, mainnet],
   connectors,
   transports: {
-    [ogNewtonTestnet.id]: http('https://evmrpc-testnet.0g.ai'),
+    [ogGalileoTestnet.id]: http('https://evmrpc-testnet.0g.ai'),
     [mainnet.id]: http(),
   },
 })
