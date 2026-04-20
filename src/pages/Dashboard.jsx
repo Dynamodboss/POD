@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAccount } from 'wagmi'
 import Navbar from '../components/Navbar'
 import { computePodScore, getProofs } from '../services/ogCompute'
+import { mintAgentId, getAgentId } from '../services/agentId'
 import '../App.css'
 import './Dashboard.css'
 
@@ -137,6 +138,10 @@ function Dashboard() {
   const { address, isConnected } = useAccount()
   const [score, setScore]       = useState(null)
   const [loading, setLoading]   = useState(false)
+  const [agentRecord, setAgentRecord] = useState(null)
+  const [minting, setMinting]   = useState(false)
+  const [mintError, setMintError] = useState('')
+  const [justMinted, setJustMinted] = useState(false)
 
   /* Fetch score whenever the connected wallet changes */
   useEffect(() => {
@@ -152,6 +157,34 @@ function Dashboard() {
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [address, isConnected])
+
+  /* Load existing Agent ID record */
+  useEffect(() => {
+    if (isConnected && address) {
+      setAgentRecord(getAgentId(address))
+    } else {
+      setAgentRecord(null)
+    }
+    setJustMinted(false)
+    setMintError('')
+  }, [address, isConnected])
+
+  /* Mint Agent ID handler */
+  async function handleMint() {
+    if (!score || score.value === 0 || minting) return
+    setMinting(true)
+    setMintError('')
+    try {
+      const record = await mintAgentId(address, score)
+      setAgentRecord(record)
+      setJustMinted(true)
+    } catch (err) {
+      console.error('Mint failed:', err)
+      setMintError(err.message || 'Minting failed. Please try again.')
+    } finally {
+      setMinting(false)
+    }
+  }
 
   /* Derive display values from real wallet */
   const displayAddress = isConnected && address
@@ -372,82 +405,182 @@ function Dashboard() {
           </section>
 
           {/* ── 5. Agent ID Card ──────────────────────── */}
-          <section className="agent-card fade-up" style={{ '--delay': '320ms' }}>
+          <section className={`agent-card fade-up${justMinted ? ' agent-card--minted' : ''}`} style={{ '--delay': '320ms' }}>
             {/* Decorative top-right corner glow */}
             <div className="agent-card__glow" aria-hidden="true" />
 
-            <div className="agent-card__header">
-              <div className="agent-card__icon-wrap" aria-hidden="true">
-                {/* Hexagon shape via CSS clip-path */}
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z" stroke="#6C63FF" strokeWidth="1.75" strokeLinejoin="round"/>
-                  <text x="12" y="16" textAnchor="middle" fill="#6C63FF" fontSize="8" fontFamily="Syne, sans-serif" fontWeight="700">ID</text>
-                </svg>
+            {/* ── Success overlay (shown right after minting) ── */}
+            {justMinted && agentRecord && (
+              <div className="agent-card__success-overlay">
+                <div className="agent-card__success-icon">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="#4ade80" strokeWidth="1.75"/>
+                    <path d="M8 12l3 3 5-5" stroke="#4ade80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <h3 className="agent-card__success-title">Agent ID Minted!</h3>
+                <p className="agent-card__success-id">{agentRecord.agentId}</p>
+                <div className="agent-card__success-details">
+                  <div className="agent-detail">
+                    <span className="agent-detail__label">Transaction</span>
+                    <span className="agent-detail__value agent-detail__value--mono">
+                      {agentRecord.txHash.slice(0, 10)}...{agentRecord.txHash.slice(-8)}
+                    </span>
+                  </div>
+                  <div className="agent-detail">
+                    <span className="agent-detail__label">Score Recorded</span>
+                    <span className="agent-detail__value">{agentRecord.score} / 1000</span>
+                  </div>
+                </div>
+                <div className="agent-card__actions">
+                  <a
+                    href={`https://chainscan-galileo.0g.ai/tx/${agentRecord.txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn--primary"
+                  >
+                    <ExternalIcon />
+                    View Transaction
+                  </a>
+                  <button className="btn btn--ghost" onClick={() => setJustMinted(false)}>
+                    View Agent ID
+                  </button>
+                </div>
               </div>
-              <div>
-                <p className="section-eyebrow" style={{ marginBottom: '4px' }}>On-Chain Identity</p>
-                <h2 className="agent-card__title">Your Agent ID</h2>
-              </div>
+            )}
 
-              {/* Minted badge */}
-              <span className="agent-card__minted-badge">
-                <span className="hero__badge-dot" style={{ width: '6px', height: '6px' }} />
-                {isConnected ? 'Active' : 'Not Minted'}
-              </span>
-            </div>
+            {/* ── Normal card content ── */}
+            {!justMinted && (
+              <>
+                <div className="agent-card__header">
+                  <div className="agent-card__icon-wrap" aria-hidden="true">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z" stroke="#6C63FF" strokeWidth="1.75" strokeLinejoin="round"/>
+                      <text x="12" y="16" textAnchor="middle" fill="#6C63FF" fontSize="8" fontFamily="Syne, sans-serif" fontWeight="700">ID</text>
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="section-eyebrow" style={{ marginBottom: '4px' }}>On-Chain Identity</p>
+                    <h2 className="agent-card__title">Your Agent ID</h2>
+                  </div>
 
-            <div className="agent-card__body">
-              {/* Token details grid */}
-              <div className="agent-card__details">
-                <div className="agent-detail">
-                  <span className="agent-detail__label">Wallet</span>
-                  <span className="agent-detail__value agent-detail__value--accent">
-                    {isConnected ? shortAddress : '—'}
+                  <span className={`agent-card__minted-badge${agentRecord ? ' agent-card__minted-badge--active' : ''}`}>
+                    <span className="hero__badge-dot" style={{ width: '6px', height: '6px' }} />
+                    {agentRecord ? 'Minted' : 'Not Minted'}
                   </span>
                 </div>
-                <div className="agent-detail">
-                  <span className="agent-detail__label">Proofs</span>
-                  <span className="agent-detail__value">{totalProjects}</span>
-                </div>
-                <div className="agent-detail">
-                  <span className="agent-detail__label">Network</span>
-                  <span className="agent-detail__value">0G Network</span>
-                </div>
-                <div className="agent-detail">
-                  <span className="agent-detail__label">Score Source</span>
-                  <span className="agent-detail__value">
-                    {score?.source === '0g-compute' ? '0G Compute AI' : score?.source === 'local' ? 'Local Algorithm' : '—'}
-                  </span>
-                </div>
-              </div>
 
-              {/* Visual score chip */}
-              <div
-                className="agent-card__score-chip"
-                style={{
-                  background: `conic-gradient(
-                    #6C63FF 0deg,
-                    #8b5cf6 ${Math.round((scoreValue / 1000) * 360)}deg,
-                    rgba(255,255,255,0.06) ${Math.round((scoreValue / 1000) * 360)}deg
-                  )`,
-                }}
-              >
-                <span className="agent-card__score-chip-value">{scoreValue}</span>
-                <span className="agent-card__score-chip-label">POD Score</span>
-                <div className="agent-card__score-chip-ring" aria-hidden="true" />
-              </div>
-            </div>
+                <div className="agent-card__body">
+                  <div className="agent-card__details">
+                    <div className="agent-detail">
+                      <span className="agent-detail__label">Wallet</span>
+                      <span className="agent-detail__value agent-detail__value--accent">
+                        {isConnected ? shortAddress : '—'}
+                      </span>
+                    </div>
+                    {agentRecord ? (
+                      <div className="agent-detail">
+                        <span className="agent-detail__label">Agent ID</span>
+                        <span className="agent-detail__value agent-detail__value--accent">
+                          {agentRecord.agentId}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="agent-detail">
+                        <span className="agent-detail__label">Proofs</span>
+                        <span className="agent-detail__value">{totalProjects}</span>
+                      </div>
+                    )}
+                    <div className="agent-detail">
+                      <span className="agent-detail__label">Network</span>
+                      <span className="agent-detail__value">0G Galileo</span>
+                    </div>
+                    {agentRecord ? (
+                      <div className="agent-detail">
+                        <span className="agent-detail__label">Minted</span>
+                        <span className="agent-detail__value">
+                          {new Date(agentRecord.mintedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="agent-detail">
+                        <span className="agent-detail__label">Score Source</span>
+                        <span className="agent-detail__value">
+                          {score?.source === '0g-compute' ? '0G Compute AI' : score?.source === 'local' ? 'Local Algorithm' : '—'}
+                        </span>
+                      </div>
+                    )}
+                    {agentRecord && (
+                      <div className="agent-detail agent-detail--wide">
+                        <span className="agent-detail__label">Transaction</span>
+                        <span className="agent-detail__value agent-detail__value--mono">
+                          {agentRecord.txHash.slice(0, 10)}...{agentRecord.txHash.slice(-8)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
 
-            <div className="agent-card__actions">
-              <button className="btn btn--primary">
-                <ShareIcon />
-                Share Identity
-              </button>
-              <button className="btn btn--ghost">
-                <ExternalIcon />
-                View on Chain
-              </button>
-            </div>
+                  <div
+                    className="agent-card__score-chip"
+                    style={{
+                      background: `conic-gradient(
+                        #6C63FF 0deg,
+                        #8b5cf6 ${Math.round((scoreValue / 1000) * 360)}deg,
+                        rgba(255,255,255,0.06) ${Math.round((scoreValue / 1000) * 360)}deg
+                      )`,
+                    }}
+                  >
+                    <span className="agent-card__score-chip-value">{scoreValue}</span>
+                    <span className="agent-card__score-chip-label">POD Score</span>
+                    <div className="agent-card__score-chip-ring" aria-hidden="true" />
+                  </div>
+                </div>
+
+                {mintError && (
+                  <p className="agent-card__error">{mintError}</p>
+                )}
+
+                <div className="agent-card__actions">
+                  {!agentRecord && scoreValue > 0 && (
+                    <button
+                      className="btn btn--primary agent-card__mint-btn"
+                      onClick={handleMint}
+                      disabled={minting}
+                    >
+                      {minting ? (
+                        <>
+                          <span className="agent-card__spinner" />
+                          Minting...
+                        </>
+                      ) : (
+                        <>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M12 2l8.66 5v10L12 22l-8.66-5V7L12 2z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round"/>
+                            <path d="M12 8v8M8 12h8" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"/>
+                          </svg>
+                          Mint Agent ID
+                        </>
+                      )}
+                    </button>
+                  )}
+                  {agentRecord && (
+                    <a
+                      href={`https://chainscan-galileo.0g.ai/tx/${agentRecord.txHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn--primary"
+                    >
+                      <ExternalIcon />
+                      View on Chain
+                    </a>
+                  )}
+                  <button className="btn btn--ghost">
+                    <ShareIcon />
+                    Share Identity
+                  </button>
+                </div>
+              </>
+            )}
           </section>
 
         </div>{/* end dash__container */}
