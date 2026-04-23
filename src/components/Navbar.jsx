@@ -76,9 +76,9 @@ function Navbar({ variant = 'landing' }) {
           </>
         ) : (
           <>
-            <Link to="/dashboard" className="navbar__mobile-link" onClick={close}>Dashboard</Link>
-            <Link to="/submit"    className="navbar__mobile-link" onClick={close}>Submit Work</Link>
-            <Link to="/score"     className="navbar__mobile-link" onClick={close}>My Score</Link>
+            <Link to="/dashboard" className={`navbar__mobile-link${pathname === '/dashboard' ? ' navbar__mobile-link--active' : ''}`} onClick={close}>Dashboard</Link>
+            <Link to="/submit"    className={`navbar__mobile-link${pathname === '/submit'    ? ' navbar__mobile-link--active' : ''}`} onClick={close}>Submit Work</Link>
+            <Link to="/score"     className={`navbar__mobile-link${pathname === '/score'     ? ' navbar__mobile-link--active' : ''}`} onClick={close}>My Score</Link>
           </>
         )}
 
