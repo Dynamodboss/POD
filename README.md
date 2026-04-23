@@ -72,29 +72,40 @@ Once scored, freelancers can mint their reputation as an **on-chain Agent ID** o
 
 ## Screenshots
 
+### Dashboard — POD Score & Reputation
+
 <p align="center">
-  <img src="public/screenshots/landing.png" alt="Landing Page" width="80%" />
-  <br/><em>Landing — Clean, modern hero with live testnet badge</em>
+  <img src="public/screenshots/dashboard-1.png" alt="Dashboard — POD Score ring showing 610, Top 39% globally, with breakdown bars for Delivery Rate, Client Satisfaction, On-Time Rate, and Work Diversity" width="80%" />
+  <br/><em>Live POD Score of 610 — Top 39% globally — with per-category breakdown</em>
 </p>
 
 <p align="center">
-  <img src="public/screenshots/dashboard.png" alt="Dashboard" width="80%" />
-  <br/><em>Dashboard — Real-time POD Score ring, stats, and verified work history</em>
+  <img src="public/screenshots/dashboard-2.png" alt="Dashboard — Verified Work History card and Agent ID card showing POD-3C58D932 minted on 0G Galileo" width="80%" />
+  <br/><em>Verified Work History stored on 0G Network + minted Agent ID <code>POD-3C58D932</code> on 0G Galileo</em>
+</p>
+
+### Submit Work Proof
+
+<p align="center">
+  <img src="public/screenshots/submit-1.png" alt="Submit Work Proof form — Project Title, Description, Deliverable Link fields with sidebar explaining what happens after submission" width="80%" />
+  <br/><em>Structured proof form — project details stored permanently on 0G Storage</em>
 </p>
 
 <p align="center">
-  <img src="public/screenshots/submit.png" alt="Submit Work" width="80%" />
-  <br/><em>Submit Work — Structured proof form with on-chain storage confirmation</em>
+  <img src="public/screenshots/submit-2.png" alt="Submit Work Proof form — Client Wallet Address, Payment Amount, Completion Date fields and Submit to 0G Storage button" width="80%" />
+  <br/><em>Client verification + payment details — submitted with a single on-chain transaction</em>
+</p>
+
+### My Score — AI Breakdown & History
+
+<p align="center">
+  <img src="public/screenshots/score-1.png" alt="Score page — 610 POD Score ring, Top 39% Globally badge, four category breakdown cards" width="80%" />
+  <br/><em>Full category breakdown — Delivery Rate 20, Client Satisfaction 100, On-Time Rate 100, Work Diversity 24</em>
 </p>
 
 <p align="center">
-  <img src="public/screenshots/score.png" alt="Score Breakdown" width="80%" />
-  <br/><em>Score — Full AI-powered breakdown with category insights and history chart</em>
-</p>
-
-<p align="center">
-  <img src="public/screenshots/agent-id.png" alt="Agent ID Minted" width="80%" />
-  <br/><em>Agent ID — Minted on-chain identity with transaction verification</em>
+  <img src="public/screenshots/score-2.png" alt="Score page — AI Analysis insight text, Score History bar chart, and How to improve your score recommendations" width="80%" />
+  <br/><em>AI Analysis insight, score history over time, and actionable improvement recommendations</em>
 </p>
 
 ---
