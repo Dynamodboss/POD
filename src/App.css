@@ -160,6 +160,10 @@
   color: var(--text);
   background: rgba(255, 255, 255, 0.05);
 }
+.navbar__link--active {
+  color: var(--text) !important;
+  background: var(--accent-dim) !important;
+}
 
 /* Mobile burger (hidden on desktop) */
 .navbar__burger {

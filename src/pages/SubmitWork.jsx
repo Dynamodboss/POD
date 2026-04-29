@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAccount } from 'wagmi'
 import Navbar from '../components/Navbar'
 import WalletButton from '../components/WalletButton'
@@ -165,9 +166,9 @@ function SubmitWork() {
                     <button className="btn btn--primary" onClick={handleReset}>
                       Submit Another
                     </button>
-                    <a href="/dashboard" className="btn btn--ghost">
+                    <Link to="/dashboard" className="btn btn--ghost">
                       View Dashboard
-                    </a>
+                    </Link>
                   </div>
                 </div>
               )}
