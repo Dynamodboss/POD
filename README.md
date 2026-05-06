@@ -273,6 +273,7 @@ VITE_OG_COMPUTE_MODEL=meta-llama/Llama-3.1-8B-Instruct
 - **Score decay & refresh** — Time-weighted scoring that rewards recent, consistent delivery
 - **0G Storage DA integration** — Use 0G's data availability layer for cheaper bulk proof storage
 - **Multi-chain Agent ID** — Bridge minted identities to Ethereum, Base, and other L2s
+- **GenLayer Dispute Resolution** — Intelligent Contracts to handle disputed scores, allowing decentralized AI consensus to review and adjudicate freelancer reputation challenges
 
 ---
 
